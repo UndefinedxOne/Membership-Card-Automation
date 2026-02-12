@@ -1,0 +1,10 @@
+{
+  "name": "acuity-passkit-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vercel serverless bridge: Acuity Scheduling → PassKit membership cards",
+  "dependencies": {
+    "axios": "^1.7.0",
+    "jsonwebtoken": "^9.0.0"
+  }
+}
