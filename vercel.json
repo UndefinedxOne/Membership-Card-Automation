@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "buildCommand": "",
-  "outputDirectory": "",
-  "rewrites": [
-    { "source": "/webhook/acuity", "destination": "/api/webhook" },
-    { "source": "/api/process-order/:orderId", "destination": "/api/process-order?orderId=:orderId" }
-  ]
-}
