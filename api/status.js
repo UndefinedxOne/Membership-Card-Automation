@@ -3,7 +3,7 @@
  * 
  * Returns server config status and stats.
  */
-const { getConfig, getLogs, getWebhookEnabled } = require('../lib/helpers');
+const { getConfig, getLogs, getWebhookEnabled, isRedisAvailable } = require('../lib/helpers');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -14,11 +14,7 @@ module.exports = async function handler(req, res) {
   const logs = await getLogs();
   const webhookEnabled = await getWebhookEnabled();
 
-  const redisAvailable = !!(
-    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
-    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) ||
-    process.env.REDIS_URL
-  );
+  const redisAvailable = isRedisAvailable();
 
   return res.status(200).json({
     status: 'running',
@@ -32,7 +28,8 @@ module.exports = async function handler(req, res) {
     },
     webhookUrl: '/webhook/acuity',
     webhookEnabled,
-    webhookToggleAvailable: redisAvailable,
+    webhookToggleAvailable: true,
+    webhookTogglePersistent: redisAvailable,
     totalProcessed: logs.filter(l => l.message && l.message.includes('Successfully created')).length,
     totalErrors: logs.filter(l => l.level === 'error').length,
     redisAvailable,
