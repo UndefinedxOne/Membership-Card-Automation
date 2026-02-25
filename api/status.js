@@ -3,7 +3,7 @@
  * 
  * Returns server config status and stats.
  */
-const { getConfig, getLogs } = require('../lib/helpers');
+const { getConfig, getLogs, getWebhookEnabled } = require('../lib/helpers');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -12,6 +12,7 @@ module.exports = async function handler(req, res) {
 
   const cfg = getConfig();
   const logs = await getLogs();
+  const webhookEnabled = await getWebhookEnabled();
 
   const redisAvailable = !!(
     (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
@@ -30,6 +31,8 @@ module.exports = async function handler(req, res) {
       membershipFilter: cfg.MEMBERSHIP_PRODUCT_FILTER || '(none — all orders processed)',
     },
     webhookUrl: '/webhook/acuity',
+    webhookEnabled,
+    webhookToggleAvailable: redisAvailable,
     totalProcessed: logs.filter(l => l.message && l.message.includes('Successfully created')).length,
     totalErrors: logs.filter(l => l.level === 'error').length,
     redisAvailable,
