@@ -91,10 +91,9 @@ async function handler(req, res) {
 
 // Vercel serverless functions need raw body for signature verification.
 // We disable the default body parser and handle it manually.
-handler.config = {
+module.exports = handler;
+module.exports.config = {
   api: {
     bodyParser: false,
   },
 };
-
-module.exports = handler;
