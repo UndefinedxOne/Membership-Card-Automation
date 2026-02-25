@@ -93,11 +93,13 @@ By default, logs are written to Vercel's function logs (visible in the dashboard
 2. Link the integration to this project
 3. Confirm env vars are present: `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
    - If your integration only shows `REDIS_URL`, this app can derive REST credentials automatically for Upstash-hosted URLs.
-4. Install dependency: add `"@upstash/redis": "^1.35.6"` to your `package.json` dependencies
+   - If REST derivation is not possible, the app falls back to direct `REDIS_URL` connectivity.
+4. Install dependencies: add `"@upstash/redis": "^1.35.6"` and `"redis": "^4.7.0"` to your `package.json` dependencies
 5. Redeploy
 
 This is totally optional — the bridge works fine without it.
 Note: webhook enable/disable toggle persistence requires Redis.
+If Redis is unavailable, toggle still works for the current warm function instance (temporary, non-persistent).
 
 ## Dashboard
 
