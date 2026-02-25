@@ -4,13 +4,18 @@
  *
  * Deactivates a member in PassKit and removes certificate->order mapping.
  */
-const {
-  cancelMembershipByCertificateCode,
-  processMembershipCancellation,
-} = require('../lib/helpers');
+const helpers = require('../lib/helpers');
 
 function looksLikeCertificateCode(value) {
   return typeof value === 'string' && /^[A-Za-z0-9]{8}$/.test(value.trim());
+}
+
+function getCancelByCodeFn() {
+  return (
+    helpers.cancelMembershipByCertificateCode ||
+    helpers.cancelMembershipByCertificatecode ||
+    null
+  );
 }
 
 module.exports = async function handler(req, res) {
@@ -23,18 +28,48 @@ module.exports = async function handler(req, res) {
     ? req.query.certificateCode.trim()
     : '';
 
+  const cancelByCodeFn = getCancelByCodeFn();
+  const processCancellationFn = helpers.processMembershipCancellation;
+  const resolveOrderIdFn = helpers.resolveOrderIdByCertificateCode;
+
   try {
     if (rawCertificateCode || looksLikeCertificateCode(rawOrderId)) {
       const certificateCode = (rawCertificateCode || rawOrderId).toUpperCase();
-      const result = await cancelMembershipByCertificateCode(certificateCode, {
-        sourceAction: 'manual.cancel',
-        reason: 'Manual cancellation request',
-      });
+      let result;
+
+      if (typeof cancelByCodeFn === 'function') {
+        result = await cancelByCodeFn(certificateCode, {
+          sourceAction: 'manual.cancel',
+          reason: 'Manual cancellation request',
+        });
+      } else if (typeof resolveOrderIdFn === 'function' && typeof processCancellationFn === 'function') {
+        const resolvedOrderId = await resolveOrderIdFn(certificateCode);
+        if (!resolvedOrderId) {
+          return res.status(404).json({
+            error: 'Cancellation helper unavailable and no certificate mapping found for this code.',
+          });
+        }
+        result = await processCancellationFn(resolvedOrderId, {
+          sourceAction: 'manual.cancel',
+          reason: 'Manual cancellation request',
+        });
+      } else {
+        return res.status(500).json({
+          error: 'Cancellation helpers are unavailable in this deployment. Redeploy latest code.',
+        });
+      }
+
       return res.status(200).json({ status: 'ok', result });
     }
 
     if (rawOrderId) {
-      const result = await processMembershipCancellation(rawOrderId, {
+      if (typeof processCancellationFn !== 'function') {
+        return res.status(500).json({
+          error: 'Order cancellation helper unavailable in this deployment. Redeploy latest code.',
+        });
+      }
+
+      const result = await processCancellationFn(rawOrderId, {
         sourceAction: 'manual.cancel',
         reason: 'Manual cancellation request',
       });
