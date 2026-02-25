@@ -354,6 +354,7 @@
   <script>
     let webhookEnabled = true;
     let webhookToggleAvailable = false;
+    let webhookTogglePersistent = false;
 
     async function fetchStatus() {
       try {
@@ -380,6 +381,7 @@
 
         webhookEnabled = data.webhookEnabled !== false;
         webhookToggleAvailable = !!data.webhookToggleAvailable;
+        webhookTogglePersistent = !!data.webhookTogglePersistent;
         document.getElementById('cfg-webhook').innerHTML = webhookEnabled
           ? '<span class="badge ok">✓ Enabled</span>'
           : '<span class="badge warn">Paused</span>';
@@ -387,7 +389,13 @@
         const toggleBtn = document.getElementById('btn-webhook-toggle');
         toggleBtn.textContent = webhookEnabled ? 'Disable Webhook' : 'Enable Webhook';
         toggleBtn.disabled = !webhookToggleAvailable;
-        toggleBtn.title = webhookToggleAvailable ? '' : 'Redis is required for persistent toggle state';
+        toggleBtn.title = !webhookToggleAvailable
+          ? 'Webhook toggle is unavailable'
+          : (webhookTogglePersistent ? '' : 'Redis unavailable: toggle state is temporary');
+
+        if (webhookToggleAvailable && !webhookTogglePersistent) {
+          document.getElementById('cfg-webhook').innerHTML += ' <span class="badge warn">Session only</span>';
+        }
 
         const redisAvailable = data.redisAvailable ?? data.kvAvailable;
 
