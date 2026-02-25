@@ -6,6 +6,7 @@
   "dependencies": {
     "@upstash/redis": "^1.35.6",
     "axios": "^1.7.0",
-    "jsonwebtoken": "^9.0.0"
+    "jsonwebtoken": "^9.0.0",
+    "redis": "^4.7.0"
   }
 }
