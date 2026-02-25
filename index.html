@@ -316,8 +316,9 @@
         <button onclick="testPassKit()">Test PassKit Connection</button>
       </div>
       <div class="manual-test">
-        <input type="text" id="manual-order-id" placeholder="Enter Acuity Order ID to re-process...">
+        <input type="text" id="manual-order-id" placeholder="Enter Acuity Order ID or certificate code...">
         <button class="primary" onclick="manualProcess()">Process Order</button>
+        <button onclick="manualCancel()">Cancel Membership</button>
       </div>
     </div>
 
@@ -445,14 +446,39 @@
     }
 
     async function manualProcess() {
-      const orderId = document.getElementById('manual-order-id').value.trim();
-      if (!orderId) { alert('Please enter an Acuity Order ID'); return; }
+      const value = document.getElementById('manual-order-id').value.trim();
+      if (!value) { alert('Please enter an Acuity Order ID or certificate code'); return; }
+
+      const looksLikeCertificateCode = /^(?=.*[A-Za-z])[A-Za-z0-9]{8}$/.test(value);
+      const query = looksLikeCertificateCode
+        ? `certificateCode=${encodeURIComponent(value)}`
+        : `orderId=${encodeURIComponent(value)}`;
+
       try {
-        const res = await fetch(`/api/process-order?orderId=${orderId}`, { method: 'POST' });
+        const res = await fetch(`/api/process-order?${query}`, { method: 'POST' });
         const data = await res.json();
         alert(data.status === 'ok'
           ? `✓ Processed!\n${JSON.stringify(data.result)}`
-          : `✗ Error: ${data.message}`);
+          : `✗ Error: ${data.message || data.error}`);
+      } catch { alert('✗ Could not reach server'); }
+      refreshLogs();
+    }
+
+    async function manualCancel() {
+      const value = document.getElementById('manual-order-id').value.trim();
+      if (!value) { alert('Please enter an Acuity Order ID or certificate code'); return; }
+
+      const looksLikeCertificateCode = /^(?=.*[A-Za-z])[A-Za-z0-9]{8}$/.test(value);
+      const query = looksLikeCertificateCode
+        ? `certificateCode=${encodeURIComponent(value)}`
+        : `orderId=${encodeURIComponent(value)}`;
+
+      try {
+        const res = await fetch(`/api/cancel-membership?${query}`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.status === 'ok'
+          ? `✓ Cancelled!\n${JSON.stringify(data.result)}`
+          : `✗ Error: ${data.message || data.error}`);
       } catch { alert('✗ Could not reach server'); }
       refreshLogs();
     }
