@@ -9,6 +9,7 @@
 const {
   verifyAcuitySignature,
   appendLog,
+  getWebhookEnabled,
   processNewMembershipOrder,
   processMembershipCancellation,
 } = require('../lib/helpers');
@@ -56,6 +57,15 @@ async function handler(req, res) {
   if (!action) {
     await appendLog('warn', 'Ignoring webhook with missing action');
     return res.status(200).json({ status: 'ignored', reason: 'missing_action' });
+  }
+
+  const webhookEnabled = await getWebhookEnabled();
+  if (!webhookEnabled) {
+    await appendLog('info', 'Webhook received while processing is disabled', {
+      action,
+      id: body.id || null,
+    });
+    return res.status(200).json({ status: 'ignored', reason: 'webhook_disabled', action });
   }
 
   // Only process order events used by this integration.
