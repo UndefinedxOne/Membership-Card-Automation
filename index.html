@@ -131,6 +131,14 @@
     }
     button:hover { border-color: var(--accent); background: var(--accent-glow); }
     button:active { transform: scale(0.97); }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    button:disabled:hover {
+      border-color: var(--border);
+      background: var(--surface-2);
+    }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     button.primary:hover { background: #5b53ee; }
 
@@ -291,6 +299,7 @@
         <tr><td>Program ID</td><td id="cfg-program">—</td></tr>
         <tr><td>Tier ID</td><td id="cfg-tier">—</td></tr>
         <tr><td>Product Filter</td><td id="cfg-filter">—</td></tr>
+        <tr><td>Webhook Processing</td><td id="cfg-webhook"><span class="badge warn">Checking...</span></td></tr>
         <tr><td>Upstash Redis</td><td id="cfg-kv"><span class="badge warn">Checking...</span></td></tr>
       </table>
     </div>
@@ -314,6 +323,7 @@
       <div class="actions">
         <button onclick="testAcuity()">Test Acuity Connection</button>
         <button onclick="testPassKit()">Test PassKit Connection</button>
+        <button id="btn-webhook-toggle" onclick="toggleWebhook()">Toggle Webhook</button>
       </div>
       <div class="manual-test">
         <input type="text" id="manual-order-id" placeholder="Enter Acuity Order ID or certificate code...">
@@ -342,6 +352,9 @@
   </div>
 
   <script>
+    let webhookEnabled = true;
+    let webhookToggleAvailable = false;
+
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
@@ -364,6 +377,17 @@
         document.getElementById('cfg-program').textContent = cfg.programId;
         document.getElementById('cfg-tier').textContent = cfg.tierId;
         document.getElementById('cfg-filter').textContent = cfg.membershipFilter;
+
+        webhookEnabled = data.webhookEnabled !== false;
+        webhookToggleAvailable = !!data.webhookToggleAvailable;
+        document.getElementById('cfg-webhook').innerHTML = webhookEnabled
+          ? '<span class="badge ok">✓ Enabled</span>'
+          : '<span class="badge warn">Paused</span>';
+
+        const toggleBtn = document.getElementById('btn-webhook-toggle');
+        toggleBtn.textContent = webhookEnabled ? 'Disable Webhook' : 'Enable Webhook';
+        toggleBtn.disabled = !webhookToggleAvailable;
+        toggleBtn.title = webhookToggleAvailable ? '' : 'Redis is required for persistent toggle state';
 
         const redisAvailable = data.redisAvailable ?? data.kvAvailable;
 
@@ -480,6 +504,24 @@
           ? `✓ Cancelled!\n${JSON.stringify(data.result)}`
           : `✗ Error: ${data.message || data.error}`);
       } catch { alert('✗ Could not reach server'); }
+      refreshLogs();
+    }
+
+    async function toggleWebhook() {
+      const next = !webhookEnabled;
+      try {
+        const res = await fetch(`/api/webhook-toggle?enabled=${next}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status !== 'ok') {
+          alert(`✗ Error: ${data.message || data.error || 'Failed to update webhook state'}`);
+          return;
+        }
+        webhookEnabled = !!data.enabled;
+        alert(`✓ Webhook processing ${webhookEnabled ? 'enabled' : 'disabled'}.`);
+      } catch {
+        alert('✗ Could not reach server');
+      }
+      fetchStatus();
       refreshLogs();
     }
 
