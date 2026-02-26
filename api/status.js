@@ -3,7 +3,7 @@
  * 
  * Returns server config status and stats.
  */
-const { getConfig, getLogs, getWebhookEnabled, isRedisAvailable } = require('../lib/helpers');
+const { getConfig, getLogs, getWebhookEnabled, getRedisStatus } = require('../lib/helpers');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -14,7 +14,8 @@ module.exports = async function handler(req, res) {
   const logs = await getLogs();
   const webhookEnabled = await getWebhookEnabled();
 
-  const redisAvailable = isRedisAvailable();
+  const redisStatus = await getRedisStatus();
+  const redisAvailable = redisStatus.available;
 
   return res.status(200).json({
     status: 'running',
@@ -30,6 +31,9 @@ module.exports = async function handler(req, res) {
     webhookEnabled,
     webhookToggleAvailable: true,
     webhookTogglePersistent: redisAvailable,
+    redisConfigured: redisStatus.configured,
+    redisProvider: redisStatus.provider,
+    redisError: redisStatus.error,
     totalProcessed: logs.filter(l => l.message && l.message.includes('Successfully created')).length,
     totalErrors: logs.filter(l => l.level === 'error').length,
     redisAvailable,
