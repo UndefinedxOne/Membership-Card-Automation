@@ -1,9 +1,13 @@
 /**
  * GET /api/status
- * 
+ *
  * Returns server config status and stats.
  */
-const { getConfig, getLogs, getWebhookEnabled, getRedisStatus } = require('../lib/helpers');
+
+function getErrorMessage(err, fallback) {
+  if (err && typeof err.message === 'string' && err.message) return err.message;
+  return fallback;
+}
 
 function withTimeout(promise, ms, fallback) {
   let timer = null;
@@ -22,20 +26,70 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const envConfig = {
+    acuityConfigured: !!(process.env.ACUITY_USER_ID && process.env.ACUITY_API_KEY),
+    passKitConfigured: !!(process.env.PASSKIT_API_KEY && process.env.PASSKIT_API_SECRET),
+    programId: process.env.PASSKIT_PROGRAM_ID ? '✓ Set' : '✗ Missing',
+    tierId: '✓ Fixed: membership',
+    membershipFilter: process.env.MEMBERSHIP_PRODUCT_FILTER || '(none — all orders processed)',
+  };
+
+  let helpers = null;
   try {
-    const cfg = getConfig();
+    helpers = require('../lib/helpers');
+  } catch (err) {
+    return res.status(200).json({
+      status: 'degraded',
+      platform: 'vercel-serverless',
+      error: `helpers_load_failed: ${getErrorMessage(err, 'Unknown helper load error')}`,
+      config: envConfig,
+      webhookUrl: '/webhook/acuity',
+      webhookEnabled: true,
+      webhookToggleAvailable: false,
+      webhookTogglePersistent: false,
+      redisConfigured: false,
+      redisProvider: null,
+      redisError: getErrorMessage(err, 'Unknown helper load error'),
+      totalProcessed: 0,
+      totalErrors: 0,
+      redisAvailable: false,
+      kvAvailable: false,
+    });
+  }
+
+  try {
+    const getConfig = typeof helpers.getConfig === 'function' ? helpers.getConfig : null;
+    const getLogs = typeof helpers.getLogs === 'function' ? helpers.getLogs : null;
+    const getWebhookEnabled = typeof helpers.getWebhookEnabled === 'function' ? helpers.getWebhookEnabled : null;
+    const getRedisStatus = typeof helpers.getRedisStatus === 'function' ? helpers.getRedisStatus : null;
+
+    const cfg = getConfig ? getConfig() : {
+      ACUITY_USER_ID: process.env.ACUITY_USER_ID,
+      ACUITY_API_KEY: process.env.ACUITY_API_KEY,
+      PASSKIT_API_KEY: process.env.PASSKIT_API_KEY,
+      PASSKIT_API_SECRET: process.env.PASSKIT_API_SECRET,
+      PASSKIT_PROGRAM_ID: process.env.PASSKIT_PROGRAM_ID,
+      MEMBERSHIP_PRODUCT_FILTER: process.env.MEMBERSHIP_PRODUCT_FILTER || '',
+    };
+
+    const fallbackRedisStatus = {
+      available: false,
+      configured: !!process.env.REDIS_URL,
+      provider: null,
+      error: 'Redis status helper unavailable',
+    };
 
     const [logs, webhookEnabled, redisStatus] = await Promise.all([
-      withTimeout(getLogs(), 1500, []),
-      withTimeout(getWebhookEnabled(), 1500, true),
+      withTimeout(getLogs ? getLogs() : [], 1500, []),
+      withTimeout(getWebhookEnabled ? getWebhookEnabled() : true, 1500, true),
       withTimeout(
-        getRedisStatus(),
+        getRedisStatus ? getRedisStatus() : fallbackRedisStatus,
         1500,
-        { available: false, configured: false, provider: null, error: 'Redis health check timeout' }
+        { available: false, configured: !!process.env.REDIS_URL, provider: null, error: 'Redis health check timeout' }
       ),
     ]);
 
-    const redisAvailable = !!redisStatus.available;
+    const redisAvailable = !!(redisStatus && redisStatus.available);
 
     return res.status(200).json({
       status: 'running',
@@ -48,17 +102,17 @@ module.exports = async function handler(req, res) {
         membershipFilter: cfg.MEMBERSHIP_PRODUCT_FILTER || '(none — all orders processed)',
       },
       webhookUrl: '/webhook/acuity',
-      webhookEnabled,
+      webhookEnabled: webhookEnabled !== false,
       webhookToggleAvailable: true,
       webhookTogglePersistent: redisAvailable,
-      redisConfigured: !!redisStatus.configured,
-      redisProvider: redisStatus.provider || null,
-      redisError: redisStatus.error || null,
+      redisConfigured: !!(redisStatus && redisStatus.configured),
+      redisProvider: (redisStatus && redisStatus.provider) || null,
+      redisError: (redisStatus && redisStatus.error) || null,
       totalProcessed: Array.isArray(logs)
-        ? logs.filter(l => l.message && l.message.includes('Successfully created')).length
+        ? logs.filter((l) => l && l.message && String(l.message).includes('Successfully created')).length
         : 0,
       totalErrors: Array.isArray(logs)
-        ? logs.filter(l => l.level === 'error').length
+        ? logs.filter((l) => l && l.level === 'error').length
         : 0,
       redisAvailable,
       kvAvailable: redisAvailable,
@@ -67,21 +121,15 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       status: 'degraded',
       platform: 'vercel-serverless',
-      error: err?.message || 'Status check failed',
-      config: {
-        acuityConfigured: !!(process.env.ACUITY_USER_ID && process.env.ACUITY_API_KEY),
-        passKitConfigured: !!(process.env.PASSKIT_API_KEY && process.env.PASSKIT_API_SECRET),
-        programId: process.env.PASSKIT_PROGRAM_ID ? '✓ Set' : '✗ Missing',
-        tierId: '✓ Fixed: membership',
-        membershipFilter: process.env.MEMBERSHIP_PRODUCT_FILTER || '(none — all orders processed)',
-      },
+      error: getErrorMessage(err, 'Status check failed'),
+      config: envConfig,
       webhookUrl: '/webhook/acuity',
       webhookEnabled: true,
       webhookToggleAvailable: false,
       webhookTogglePersistent: false,
-      redisConfigured: false,
+      redisConfigured: !!process.env.REDIS_URL,
       redisProvider: null,
-      redisError: err?.message || 'Unknown',
+      redisError: getErrorMessage(err, 'Unknown'),
       totalProcessed: 0,
       totalErrors: 0,
       redisAvailable: false,
