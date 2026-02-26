@@ -339,7 +339,7 @@
         <button onclick="refreshLogs()" style="font-size: 12px; padding: 5px 12px;">Refresh</button>
       </div>
       <div class="kv-notice" id="kv-notice">
-        ⚠️ Upstash Redis not connected — logs below are only from the current session.
+        ⚠️ Redis not connected — logs below are only from the current session.
         <a href="https://vercel.com/docs/redis" target="_blank" style="color: var(--amber); text-decoration: underline; margin-left: 4px;">Add Redis for persistent logs →</a>
       </div>
       <div class="log-list" id="log-list">
@@ -355,6 +355,7 @@
     let webhookEnabled = true;
     let webhookToggleAvailable = false;
     let webhookTogglePersistent = false;
+    const defaultRedisNoticeHtml = '⚠️ Redis not connected — logs below are only from the current session. <a href="https://vercel.com/docs/redis" target="_blank" style="color: var(--amber); text-decoration: underline; margin-left: 4px;">Add Redis for persistent logs →</a>';
 
     async function fetchStatus() {
       try {
@@ -398,13 +399,25 @@
         }
 
         const redisAvailable = data.redisAvailable ?? data.kvAvailable;
+        const redisConfigured = !!data.redisConfigured;
+        const redisProvider = data.redisProvider || null;
+        const redisError = data.redisError || null;
+        const redisNotice = document.getElementById('kv-notice');
 
         document.getElementById('cfg-kv').innerHTML = redisAvailable
           ? '<span class="badge ok">✓ Connected</span>'
           : '<span class="badge warn">Not linked (logs are ephemeral)</span>';
 
         if (!redisAvailable) {
-          document.getElementById('kv-notice').style.display = 'block';
+          redisNotice.style.display = 'block';
+          if (redisConfigured) {
+            const errorHint = redisError ? ` ${String(redisError).slice(0, 180)}` : '';
+            redisNotice.textContent = `⚠️ Redis is configured${redisProvider ? ` (${redisProvider})` : ''} but unreachable. Logs below are only from the current session.${errorHint}`;
+          } else {
+            redisNotice.innerHTML = defaultRedisNoticeHtml;
+          }
+        } else {
+          redisNotice.style.display = 'none';
         }
 
         const allOk = cfg.acuityConfigured && cfg.passKitConfigured
